@@ -1,0 +1,334 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'yield-farming-production'
+    environment: 'production'
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Backend API
+  - job_name: 'yield-farming-backend'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - yield-farming
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+
+  # Node Exporter
+  - job_name: 'node-exporter'
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+
+  # Kubernetes API Server
+  - job_name: 'kubernetes-apiservers'
+    kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names:
+            - default
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+
+  # Kubernetes Kubelet
+  - job_name: 'kubernetes-nodes'
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+
+  # cAdvisor
+  - job_name: 'kubernetes-cadvisor'
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+  # PostgreSQL
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  # Nginx
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+    scrape_interval: 30s
+
+  # Blockchain Metrics
+  - job_name: 'blockchain-metrics'
+    static_configs:
+      - targets: ['blockchain-exporter:8080']
+    scrape_interval: 60s
+    metrics_path: /metrics
+
+  # ML Model Metrics
+  - job_name: 'ml-models'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - yield-farming
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: yield-farming-ml-trainer
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+
+  # Automation/Keeper Metrics
+  - job_name: 'automation-keepers'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - yield-farming
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: yield-farming-automation
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+
+  # External Services Monitoring
+  - job_name: 'external-apis'
+    static_configs:
+      - targets: 
+        - 'api.coingecko.com'
+        - 'api.compound.finance'
+        - 'aave-api-v2.aave.com'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Smart Contract Events
+  - job_name: 'smart-contract-events'
+    static_configs:
+      - targets: ['contract-monitor:8081']
+    scrape_interval: 30s
+
+# Recording rules for aggregations
+recording_rules:
+  - name: yield_farming_aggregations
+    interval: 30s
+    rules:
+      - record: yield_farming:api_request_rate
+        expr: rate(http_requests_total[5m])
+      
+      - record: yield_farming:api_error_rate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])
+      
+      - record: yield_farming:api_latency_p99
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
+      
+      - record: yield_farming:vault_total_value
+        expr: sum(vault_total_assets) by (vault_address)
+      
+      - record: yield_farming:protocol_apy_avg
+        expr: avg(protocol_apy) by (protocol)
+      
+      - record: yield_farming:ml_prediction_accuracy
+        expr: avg(ml_model_accuracy) by (model_name)
+      
+      - record: yield_farming:automation_success_rate
+        expr: rate(automation_executions_total{status="success"}[5m]) / rate(automation_executions_total[5m])
+
+# Alerting rules
+alerting_rules:
+  - name: yield_farming_alerts
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: yield_farming:api_error_rate > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+
+      # High latency
+      - alert: HighLatency
+        expr: yield_farming:api_latency_p99 > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency detected"
+          description: "99th percentile latency is {{ $value }}s"
+
+      # Low ML model accuracy
+      - alert: LowMLAccuracy
+        expr: yield_farming:ml_prediction_accuracy < 0.7
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ML model accuracy below threshold"
+          description: "Model {{ $labels.model_name }} accuracy is {{ $value | humanizePercentage }}"
+
+      # Automation failure
+      - alert: AutomationFailure
+        expr: yield_farming:automation_success_rate < 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Automation success rate below threshold"
+          description: "Automation success rate is {{ $value | humanizePercentage }}"
+
+      # High vault risk
+      - alert: HighVaultRisk
+        expr: vault_risk_score > 80
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High risk detected in vault"
+          description: "Vault {{ $labels.vault_address }} has risk score {{ $value }}"
+
+      # Database connection issues
+      - alert: DatabaseDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database is down"
+          description: "PostgreSQL database is not responding"
+
+      # Redis connection issues
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache is not responding"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # Disk space low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is {{ $value | humanizePercentage }} available on {{ $labels.instance }}"

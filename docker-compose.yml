@@ -1,0 +1,267 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: yield-farming-db
+    environment:
+      POSTGRES_DB: yield_farming
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - yield-farming-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: yield-farming-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - yield-farming-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yield-farming-backend
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/yield_farming
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis}@redis:6379
+      - INFURA_API_KEY=${INFURA_API_KEY}
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - CHAINLINK_REGISTRY_ADDRESS=${CHAINLINK_REGISTRY_ADDRESS}
+      - GELATO_RELAY_API_KEY=${GELATO_RELAY_API_KEY}
+    volumes:
+      - ./backend:/app
+      - ./ml:/app/ml
+      - backend_logs:/app/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - yield-farming-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ML Training Service
+  ml-trainer:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    container_name: yield-farming-ml-trainer
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/yield_farming
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis}@redis:6379
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY}
+      - DUNE_API_KEY=${DUNE_API_KEY}
+    volumes:
+      - ./ml:/app
+      - ml_models:/app/models
+      - ml_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+    command: python training/train_models.py --schedule
+
+  # Automation Service
+  automation:
+    build:
+      context: ./keepers
+      dockerfile: Dockerfile
+    container_name: yield-farming-automation
+    environment:
+      - INFURA_API_KEY=${INFURA_API_KEY}
+      - PRIVATE_KEY=${AUTOMATION_PRIVATE_KEY}
+      - CHAINLINK_REGISTRY_ADDRESS=${CHAINLINK_REGISTRY_ADDRESS}
+      - GELATO_RELAY_API_KEY=${GELATO_RELAY_API_KEY}
+      - BACKEND_URL=http://backend:8000
+    volumes:
+      - ./keepers:/app
+      - automation_logs:/app/logs
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=${NODE_ENV:-development}
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+        - REACT_APP_CHAIN_ID=${REACT_APP_CHAIN_ID:-1}
+        - REACT_APP_INFURA_ID=${REACT_APP_INFURA_ID}
+    container_name: yield-farming-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: yield-farming-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - nginx_logs:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: yield-farming-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: yield-farming-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  # Log Aggregation - ELK Stack
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: yield-farming-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.8.0
+    container_name: yield-farming-logstash
+    volumes:
+      - ./monitoring/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./monitoring/logstash/config:/usr/share/logstash/config
+    ports:
+      - "5044:5044"
+    depends_on:
+      - elasticsearch
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: yield-farming-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - yield-farming-network
+    restart: unless-stopped
+
+  # Security Scanning
+  trivy:
+    image: aquasec/trivy:latest
+    container_name: yield-farming-security-scan
+    volumes:
+      - ./:/workspace
+      - trivy_cache:/root/.cache/trivy
+    networks:
+      - yield-farming-network
+    profiles:
+      - security
+    command: ["filesystem", "/workspace"]
+
+volumes:
+  postgres_data:
+  redis_data:
+  ml_models:
+  ml_data:
+  backend_logs:
+  automation_logs:
+  nginx_logs:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:
+  trivy_cache:
+
+networks:
+  yield-farming-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
