@@ -147,13 +147,92 @@ python -m pytest tests/
 - Gas optimization: L2 integration (Arbitrum, Optimism)
 - Uptime: 99.9% availability target
 
-## 🤝 Contributing
-
-Please read our [Contributing Guide](docs/CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## 📄 License
+## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+The MIT License is a permissive license that allows for reuse within proprietary software provided that all copies of the licensed software include a copy of the MIT License terms and the copyright notice.
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Here's how you can help improve the AI-Driven Yield Farming platform:
+
+### Getting Started
+
+1. **Fork the repository**
+   ```bash
+   git clone https://github.com/Subaskar-S/ai-yield-farming.git
+   ```
+
+2. **Create a feature branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+3. **Make your changes**
+   - Follow the existing code style and conventions
+   - Add tests for new functionality
+   - Update documentation as needed
+   - Ensure all tests pass
+
+4. **Commit your changes**
+   ```bash
+   git commit -m "Add feature: your descriptive commit message"
+   ```
+
+5. **Push to your fork**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+6. **Create a Pull Request**
+   - Provide a clear description of your changes
+   - Reference any related issues
+   - Ensure CI/CD checks pass
+
+### Development Guidelines
+
+- **Code Quality**: Maintain high code quality with proper testing
+- **Documentation**: Update relevant documentation for any changes
+- **Security**: Follow security best practices, especially for smart contracts
+- **Performance**: Consider performance implications of your changes
+
+### Areas for Contribution
+
+- 🔒 **Security Audits**: Help identify and fix security vulnerabilities
+- 🤖 **ML Models**: Improve prediction accuracy and add new models
+- 🌐 **Protocol Integration**: Add support for new DeFi protocols
+- 📱 **Frontend**: Enhance user experience and add new features
+- 📚 **Documentation**: Improve guides and API documentation
+- 🧪 **Testing**: Increase test coverage and add edge case testing
+
+## 👨‍💻 Made by
+
+**Subaskar S** - *Full Stack Developer & DeFi Enthusiast*
+
+Passionate about building the future of decentralized finance through innovative technology and artificial intelligence.
+
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Subaskar-S)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/subaskar97)
+
+### Connect & Collaborate
+
+- 💼 **Professional Profile**: [LinkedIn](https://www.linkedin.com/in/subaskar97)
+- 🚀 **Open Source Projects**: [GitHub](https://github.com/Subaskar-S)
+- 📧 **Contact**: Available through GitHub or LinkedIn
+
+---
+
+**🚀 Built with ❤️ and cutting-edge technology**
+
+*Empowering the future of decentralized finance through artificial intelligence*
+
+### Project Stats
+
+![GitHub stars](https://img.shields.io/github/stars/Subaskar-S/ai-yield-farming?style=social)
+![GitHub forks](https://img.shields.io/github/forks/Subaskar-S/ai-yield-farming?style=social)
+![GitHub issues](https://img.shields.io/github/issues/Subaskar-S/ai-yield-farming)
+![GitHub license](https://img.shields.io/github/license/Subaskar-S/ai-yield-farming)
 
 ## ⚠️ Disclaimer
 
