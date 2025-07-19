@@ -227,13 +227,6 @@ Passionate about building the future of decentralized finance through innovative
 
 *Empowering the future of decentralized finance through artificial intelligence*
 
-### Project Stats
-
-![GitHub stars](https://img.shields.io/github/stars/Subaskar-S/ai-yield-farming?style=social)
-![GitHub forks](https://img.shields.io/github/forks/Subaskar-S/ai-yield-farming?style=social)
-![GitHub issues](https://img.shields.io/github/issues/Subaskar-S/ai-yield-farming)
-![GitHub license](https://img.shields.io/github/license/Subaskar-S/ai-yield-farming)
-
 ## ⚠️ Disclaimer
 
 This software is experimental and involves financial risk. Users should understand the risks involved in DeFi yield farming before using this platform. The developers are not responsible for any financial losses.
