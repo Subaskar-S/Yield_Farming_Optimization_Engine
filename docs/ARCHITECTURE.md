@@ -16,7 +16,7 @@ The AI-Driven Yield Farming Optimization Engine is a comprehensive DeFi platform
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Web3 Layer    │    │   Database      │    │   Data Sources  │
-│   (Web3.py)     │    │  (PostgreSQL)   │    │  (DeFi APIs)    │
+│   (Web3.py)     │    │  (PostgreSQL)   │    │   (DeFi APIs)   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │
          ▼
